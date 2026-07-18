@@ -114,6 +114,41 @@ def call_groq(
     )
 
 
+def _dry_run_response(prompt: str, model: str) -> LLMResult:
+    """Return a canned response when DRY_RUN=1 — no API call, no quota burn.
+
+    Detects if the prompt asks for JSON (stage_03_entries) and returns a valid
+    JSON array so downstream parsing works. Otherwise returns markdown.
+    """
+    lower = prompt.lower()
+    if "json" in lower and ("array" in lower or "headword" in lower or "entries" in lower):
+        # Match the batch size hinted in the prompt if we can find it
+        import re as _re
+        m = _re.search(r"(\d+)\s*(?:new\s+)?(?:vocabulary\s+)?(?:entries|entr)", lower)
+        n = int(m.group(1)) if m else 5
+        entries = [
+            {
+                "headword": f"dryword{i}",
+                "pronunciation": "DRY-wurd",
+                "english_definition": f"Dry-run placeholder entry #{i}.",
+                "example_sentence": "Dis one for testin only.",
+                "cultural_context": "No cultural content in dry-run mode.",
+            }
+            for i in range(1, n + 1)
+        ]
+        import json as _json
+        text = _json.dumps(entries, indent=2)
+    else:
+        text = (
+            "# Dry-run output\n\n"
+            "_This file was produced with `DRY_RUN=1` — no LLM was called, no quota was used._\n\n"
+            "Real content will appear here once secrets are configured and DRY_RUN is unset.\n\n"
+            f"**Model that would have been called:** `{model}`\n"
+            f"**Prompt length:** {len(prompt)} chars\n"
+        )
+    return LLMResult(text=text, tokens_in=len(prompt) // 4, tokens_out=len(text) // 4, model=f"dry-run:{model}")
+
+
 def call_llm(
     prompt: str,
     model: str,
@@ -127,7 +162,12 @@ def call_llm(
       gemini-*   → Google Gemini
       groq-*     → Groq Cloud (strip prefix before sending)
       llama-*    → Groq (assumes Llama on Groq)
+
+    Set env var DRY_RUN=1 to short-circuit all calls with canned responses.
+    Useful for testing the pipeline end-to-end without burning free-tier quota.
     """
+    if os.environ.get("DRY_RUN") in ("1", "true", "yes"):
+        return _dry_run_response(prompt, model)
     if model.startswith("gemini"):
         return call_gemini(prompt, model=model, system=system, max_tokens=max_tokens, temperature=temperature)
     if model.startswith("groq-"):

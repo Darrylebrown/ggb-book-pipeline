@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      pages: write
+      id-token: write
 
     steps:
       - name: Checkout pipeline repo
@@ -62,3 +64,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GGB_BOOKS_TOKEN }}
         run: python scripts/open_review_prs.py --books-root ggb-books
+
+      - name: Rebuild status dashboard
+        run: python scripts/build_dashboard.py --books-root ggb-books --output dashboard/index.html
+
+      - name: Upload dashboard as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard
+
+  deploy-pages:
+    needs: advance
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
