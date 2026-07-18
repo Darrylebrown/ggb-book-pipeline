@@ -1,0 +1,240 @@
+name: Vocabulary Reference Book v1
+version: 1.0
+book_type: Reference
+description: >
+  Living-language vocabulary reference books scoped to a cultural region.
+  Pilot template used for De Gullah Book (Corridor scope: NC to FL).
+
+# Which model runs each stage. Rate-limited stages (Pro, 50/day) are reserved
+# for high-nuance work. Groq handles anything variant-heavy or short-form.
+preferred_models:
+  dossier: gemini-2.0-pro-exp
+  structure: gemini-2.0-flash-exp
+  entries: gemini-2.0-pro-exp
+  sample_chapter: gemini-2.0-pro-exp
+  kdp_metadata: gemini-2.0-flash-exp
+  pins: gemini-2.0-flash-exp
+  tiktok: llama-3.3-70b-versatile
+  shorts: llama-3.3-70b-versatile
+  substack: gemini-2.0-pro-exp
+  acx_brief: gemini-2.0-pro-exp
+  rights_ip: gemini-2.0-pro-exp
+
+system_prompt: |
+  You are the GGB Book Pipeline production agent for Gullah Geechee Biz. Author
+  of record on all output: Darryl Elliott Brown. Publisher: Gullah Geechee Biz.
+
+  Non-negotiable rules:
+    - Every factual claim must be tied to a real, citable source with a URL.
+      Do not fabricate sources. If a source cannot be verified, say so.
+    - Cultural sensitivity is paramount. Living community bearers are honored,
+      never quoted without permission. Sacred material is marked and excluded
+      from publication.
+    - Editorial scope is the entire federally designated Gullah Geechee
+      Cultural Heritage Corridor — Wilmington NC to Jacksonville FL — not
+      "Sea Islands" narrowly.
+    - Compliance with KDP and Draft2Digital publishing standards is required.
+
+stages:
+  dossier: |
+    Produce a publication-standard research dossier for the book:
+      Title: {{TITLE}}
+      Subtitle: {{SUBTITLE}}
+      One-line brief: {{BRIEF}}
+
+    Cover, in this order:
+      1. Introduction and scope statement (entire Gullah Geechee Cultural
+         Heritage Corridor, Wilmington NC → Jacksonville FL).
+      2. Linguistic authorities: Lorenzo Dow Turner (posthumous), Salikoko
+         Mufwene, Virginia Mixson Geraty (posthumous), APiCS Online team,
+         Linguistic Atlas Project.
+      3. Community bearers to acknowledge: Queen Quet / Marquetta Goodwine,
+         Dr. Emory Campbell, Sallie Ann Robinson, Cornelia Walker Bailey
+         (posthumous), Mary Jackson, Dr. Michael Allen. Do not quote without
+         permission.
+      4. Scholarly and primary sources with URLs — NPS Corridor, Corridor
+         Commission, Wikipedia, Britannica, APiCS, Folkstreams, Smithsonian
+         NMAAHC, De Nyew Testament, Linguistic Atlas Project.
+      5. Cultural ethics statement.
+      6. Citation plan.
+
+    Output as clean markdown. Minimum 3000 words.
+
+  structure: |
+    Produce a 10-section book structure for:
+      Title: {{TITLE}}
+      Total target headwords: {{ENTRY_COUNT_TARGET}}
+
+    Ten canonical sections (Gullah + English):
+      1. De Land          — Land and territory
+      2. De Watuh         — Water, tides, marine life
+      3. De People        — Kinship, community, identity
+      4. De Fiah De Pot   — Fire, cooking, foodways
+      5. De Praise        — Worship, spirituals, praise houses
+      6. De Wuk           — Work, craft, sweetgrass, indigo
+      7. De Talk          — Language, greetings, expressions
+      8. De Story         — Storytelling, folktales, oral tradition
+      9. De Chirren Lern  — What the children learn
+      10. De Provuhbs     — Proverbs and wisdom
+
+    For each section: name, scope, target headword count (sum = target),
+    representative words. Include front matter and back matter plans.
+
+    Output as markdown.
+
+  entries: |
+    Generate {{BATCH_SIZE}} vocabulary entries for section "{{SECTION_NAME}}".
+
+    Each entry MUST be a JSON object with exactly these fields:
+      - headword               (Gullah, string)
+      - pronunciation          (plain-English respelling, string)
+      - also_written           (array of alternate spellings)
+      - english_definition     (string)
+      - sample_sentence_gullah (string)
+      - sample_sentence_english (string)
+      - west_african_root      (string, includes source URL inline)
+      - cultural_note          (string, 2-3 sentences)
+      - source_urls            (array of 1-3 real, verifiable URLs)
+      - sensitivity            ("Public" | "Restricted" | "Sacred")
+
+    Book:  {{TITLE}} — {{SUBTITLE}}
+    Scope: entire Gullah Geechee Cultural Heritage Corridor
+           (Wilmington NC → Jacksonville FL).
+
+    Do not include entries already generated. Existing headwords:
+    {{EXISTING_HEADWORDS}}
+
+    Return ONLY a JSON array. No prose before or after.
+
+  sample_chapter: |
+    Produce a full, publication-ready sample chapter for section
+    "{{SECTION_NAME}}" using the entries in that section as source material.
+
+    Include a section opener (~500 words) that frames the theme, then present
+    each entry in the following format:
+
+      ## {headword}
+      _{pronunciation}_ · also written {also_written}
+      **{english_definition}**
+
+      > {sample_sentence_gullah}
+      > — {sample_sentence_english}
+
+      **Root:** {west_african_root}
+      **Cultural note:** {cultural_note}
+
+      *Sources: {source_urls as hyperlinked list}*
+
+    Then close with a section reflection (~300 words) that draws the entries
+    together as a lived experience of the theme.
+
+    Output as clean markdown.
+
+  kdp_metadata: |
+    Produce a complete KDP + Draft2Digital metadata pack for:
+      Title:    {{TITLE}}
+      Subtitle: {{SUBTITLE}}
+      Author:   Darryl Elliott Brown
+      Publisher: Gullah Geechee Biz
+
+    Include:
+      - ISBN plan (Bowker 3-pack — paperback, eBook, hardcover)
+      - Amazon categories (3 primary picks with reasoning)
+      - 7 keyword phrases (long-tail, under 50 chars each)
+      - Long description (150-300 words, marketing-optimized)
+      - Short description (< 150 chars, elevator pitch)
+      - Cover design brief (paperback + eBook thumbnails)
+      - Copyright page text
+      - Suggested retail pricing (paperback, eBook, hardcover)
+      - Royalty estimate at each price point (70% eBook, 60% paperback)
+
+    Output as markdown.
+
+  pins: |
+    Produce 5 Pinterest pin briefs. One Gullah word per pin.
+
+    For each pin:
+      - Anchor word (one Gullah word from the book)
+      - Pronunciation
+      - Meaning (1 sentence)
+      - Pin image brief (composition, color, mood — for a designer)
+      - Pin title (60 chars max)
+      - Pin description (500 chars max, SEO-optimized, includes 3-5 hashtags)
+      - Alt text (accessibility)
+
+    Anchor words to use in order: NYAM, DAYCLEAN, OONUH, BIN YAH, TENKI.
+
+    Output as markdown.
+
+  tiktok: |
+    Produce a 75-second TikTok script titled
+    "5 Words That Survived 400 Years."
+
+    Structure:
+      - Hook (0-3s) — visual + spoken
+      - Word 1 (3-15s): NYAM
+      - Word 2 (15-27s): DAYCLEAN
+      - Word 3 (27-39s): OONUH
+      - Word 4 (39-51s): BIN YAH
+      - Word 5 (51-63s): TENKI
+      - Close (63-75s) — CTA to book + Substack
+
+    Include: shot direction, on-screen text, spoken VO, background music
+    suggestion, tags/hashtags.
+
+    Output as markdown.
+
+  shorts: |
+    Produce a 55-second YouTube Shorts script anchored on the word
+    "BIN YAH." Emotional register: pride, rootedness, welcome.
+
+    Include: shot direction, on-screen text, VO, music suggestion, tags.
+
+    Output as markdown.
+
+  substack: |
+    Produce a Substack launch teaser post announcing:
+      Title:    {{TITLE}}
+      Subtitle: {{SUBTITLE}}
+
+    Include:
+      - Post headline
+      - 3 A/B subject-line variants
+      - Post body (600-900 words) — hook, why-this-matters, sample entries,
+        pre-order CTA, credits to community bearers
+      - Subscribe CTA
+      - Share CTA
+
+    Output as markdown.
+
+  acx_brief: |
+    Produce an ACX narrator direction sheet for the audiobook version.
+
+    Include:
+      - Narrator requirements (must be a Gullah speaker, or supervised
+        throughout by one — non-negotiable)
+      - Casting sources (Gullah/Geechee Nation network, HBCU theater
+        departments, Corridor community organizations)
+      - Voice profile (age, tone, gender preferences)
+      - Pronunciation guide for tricky words in the book
+      - Pacing guidance
+      - Sample audition script (1 page)
+      - Rate range (union + non-union)
+
+    Output as markdown.
+
+  rights_ip: |
+    Produce a complete rights and IP protection document.
+
+    Include:
+      - Copyright plan (registration timing, deposit copies, term)
+      - Trademark plan for "Gullah Geechee Biz" — USPTO Class 16 (books),
+        Class 41 (educational services), Class 9 (audiobooks)
+      - AI disclosure text (compliant with KDP AI-content policy)
+      - DMCA takedown template
+      - Amazon Brand Registry plan
+      - Fair use guidance for pull quotes and community references
+      - Cultural bearer acknowledgment protocol
+      - Sacred content exclusion protocol
+
+    Output as markdown.

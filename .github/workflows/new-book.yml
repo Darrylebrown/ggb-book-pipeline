@@ -1,0 +1,76 @@
+name: New Book Intake
+
+# Trigger a new book intake manually. Creates the folder + state.json in ggb-books.
+# The pipeline cron will pick it up on the next tick.
+
+on:
+  workflow_dispatch:
+    inputs:
+      book_id:
+        description: "Book slug (lowercase, hyphens only) e.g. de-gullah-book-vol-2"
+        required: true
+        type: string
+      working_title:
+        description: "Working title"
+        required: true
+        type: string
+      subtitle:
+        description: "Subtitle"
+        required: true
+        type: string
+      prompt_template:
+        description: "Prompt template name (in prompts/)"
+        required: true
+        type: string
+        default: "vocabulary-reference-v1"
+      brief:
+        description: "One-paragraph brief"
+        required: true
+        type: string
+      entry_count_target:
+        description: "Target headword count"
+        required: false
+        type: string
+        default: "370"
+
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pipeline repo
+        uses: actions/checkout@v4
+
+      - name: Checkout books repo (private)
+        uses: actions/checkout@v4
+        with:
+          repository: Darrylebrown/ggb-books
+          token: ${{ secrets.GGB_BOOKS_TOKEN }}
+          path: ggb-books
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create book folder + state.json
+        run: |
+          python scripts/new_book.py \
+            --books-root ggb-books \
+            --book-id "${{ inputs.book_id }}" \
+            --title "${{ inputs.working_title }}" \
+            --subtitle "${{ inputs.subtitle }}" \
+            --template "${{ inputs.prompt_template }}" \
+            --brief "${{ inputs.brief }}" \
+            --entry-count-target "${{ inputs.entry_count_target }}"
+
+      - name: Commit + push to ggb-books
+        working-directory: ggb-books
+        run: |
+          git config user.name "GGB Pipeline Bot"
+          git config user.email "bot@gullahgeecheebiz.com"
+          git add books/
+          git commit -m "Intake: new book ${{ inputs.book_id }}"
+          git push
