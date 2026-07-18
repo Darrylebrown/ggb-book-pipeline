@@ -1,4 +1,4 @@
-"""Stage 01 — Generate the research dossier for a book."""
+"""Stage 02 — Generate the 10-section book structure."""
 from __future__ import annotations
 
 import argparse
@@ -13,13 +13,13 @@ def run(books_root: Path, book_id: str) -> None:
     run_simple_llm_stage(
         books_root=books_root,
         book_id=book_id,
-        stage_key="dossier",
-        stage_name="dossier",
-        drafting_status="Dossier drafting",
-        ready_status="Dossier ready — awaiting review",
-        output_filename="01-dossier.md",
-        assets_key="dossier",
-        max_tokens=12000,
+        stage_key="structure",
+        stage_name="structure",
+        drafting_status="Structure drafting",
+        ready_status="Structure ready — awaiting review",
+        output_filename="02-structure.md",
+        assets_key="structure",
+        max_tokens=6000,
     )
 
 

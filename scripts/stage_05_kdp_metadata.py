@@ -1,4 +1,4 @@
-"""Stage 01 — Generate the research dossier for a book."""
+"""Stage 05 — Generate the KDP + D2D metadata pack."""
 from __future__ import annotations
 
 import argparse
@@ -13,13 +13,13 @@ def run(books_root: Path, book_id: str) -> None:
     run_simple_llm_stage(
         books_root=books_root,
         book_id=book_id,
-        stage_key="dossier",
-        stage_name="dossier",
-        drafting_status="Dossier drafting",
-        ready_status="Dossier ready — awaiting review",
-        output_filename="01-dossier.md",
-        assets_key="dossier",
-        max_tokens=12000,
+        stage_key="kdp_metadata",
+        stage_name="kdp_metadata",
+        drafting_status="KDP metadata drafting",
+        ready_status="Social assets drafting",  # KDP metadata cascades directly into social
+        output_filename="05-kdp-metadata.md",
+        assets_key="kdp_metadata",
+        max_tokens=6000,
     )
 
 
