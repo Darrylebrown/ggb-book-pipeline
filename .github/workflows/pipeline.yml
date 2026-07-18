@@ -1,0 +1,59 @@
+name: GGB Book Pipeline — Main Loop
+
+# Cron every 30 minutes. Finds books ready to advance and runs one stage each.
+# 30-min cadence = 1,440 runs/month, well under the 2,000-min budget on free tier
+# even if we later flip to a private repo.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:  # manual trigger
+
+concurrency:
+  group: ggb-pipeline
+  cancel-in-progress: false
+
+jobs:
+  advance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout pipeline repo
+        uses: actions/checkout@v4
+
+      - name: Checkout books repo (private)
+        uses: actions/checkout@v4
+        with:
+          repository: Darrylebrown/ggb-books
+          token: ${{ secrets.GGB_BOOKS_TOKEN }}
+          path: ggb-books
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline dispatcher
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python scripts/run_pipeline.py --books-root ggb-books
+
+      - name: Commit + push changes to ggb-books
+        working-directory: ggb-books
+        run: |
+          git config user.name "GGB Pipeline Bot"
+          git config user.email "bot@gullahgeecheebiz.com"
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit -m "Pipeline: advance $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push
+          else
+            echo "[pipeline] No changes to commit."
+          fi
