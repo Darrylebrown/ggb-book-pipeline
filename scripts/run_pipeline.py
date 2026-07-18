@@ -23,14 +23,13 @@ from state import books_ready_to_advance, load_state, mark_error  # noqa: E402
 # Map "current status" → the stage script to run next.
 # Statuses appearing here MUST be either in ADVANCEABLE_STATUSES or
 # REVIEW_GATED (with the gate approved) — see state.py.
-STAGE_MAP: dict[str, str] = {
+# Book (vocabulary reference) STAGE_MAP
+BOOK_STAGE_MAP: dict[str, str] = {
     "Brief received": "stage_01_dossier.py",
-    # Approved-and-ready-to-advance states:
-    "Dossier ready — awaiting review": "stage_02_structure.py",   # TODO: not written yet
-    "Structure ready — awaiting review": "stage_03_entries.py",   # TODO
-    "Entries ready — awaiting review": "stage_04_sample_chapter.py",  # TODO
-    "Sample chapter ready — awaiting review": "stage_05_kdp_metadata.py",  # TODO
-    # Auto-advancing drafting states:
+    "Dossier ready — awaiting review": "stage_02_structure.py",
+    "Structure ready — awaiting review": "stage_03_entries.py",
+    "Entries ready — awaiting review": "stage_04_sample_chapter.py",
+    "Sample chapter ready — awaiting review": "stage_05_kdp_metadata.py",
     "Structure drafting": "stage_02_structure.py",
     "Entries generating": "stage_03_entries.py",
     "Sample chapter drafting": "stage_04_sample_chapter.py",
@@ -40,6 +39,35 @@ STAGE_MAP: dict[str, str] = {
     "Rights & IP drafting": "stage_11_rights.py",
     "Package assembly": "stage_12_assemble.py",
 }
+
+# Screenplay STAGE_MAP — reuses generic stages 1, 2, 5, 6, 10, 11, 12
+# and swaps in screenplay-specific stages 3 (Acts) and 4 (Act I review).
+SCREENPLAY_STAGE_MAP: dict[str, str] = {
+    "Brief received": "stage_01_dossier.py",
+    "Dossier ready — awaiting review": "stage_02_structure.py",
+    "Structure ready — awaiting review": "stage_screenplay_acts.py",
+    "Entries ready — awaiting review": "stage_screenplay_sample.py",
+    "Sample chapter ready — awaiting review": "stage_05_kdp_metadata.py",
+    "Structure drafting": "stage_02_structure.py",
+    "Entries generating": "stage_screenplay_acts.py",
+    "Sample chapter drafting": "stage_screenplay_sample.py",
+    "KDP metadata drafting": "stage_05_kdp_metadata.py",
+    "Social assets drafting": "stage_06_social.py",
+    "ACX brief drafting": "stage_10_acx.py",
+    "Rights & IP drafting": "stage_11_rights.py",
+    "Package assembly": "stage_12_assemble.py",
+}
+
+# Back-compat alias — some code imports STAGE_MAP directly
+STAGE_MAP = BOOK_STAGE_MAP
+
+
+def stage_map_for(state: dict) -> dict[str, str]:
+    """Choose the correct stage map based on the book's prompt_template."""
+    template = state.get("prompt_template", "")
+    if template.startswith("screenplay"):
+        return SCREENPLAY_STAGE_MAP
+    return BOOK_STAGE_MAP
 
 
 def main() -> None:
@@ -59,7 +87,8 @@ def main() -> None:
     for book_id in ready:
         state = load_state(books_root, book_id)
         status = state["status"]
-        script_name = STAGE_MAP.get(status)
+        stage_map = stage_map_for(state)
+        script_name = stage_map.get(status)
         if not script_name:
             print(f"[pipeline] {book_id}: no mapping for status {status!r} — skipping")
             continue

@@ -1,0 +1,369 @@
+name: Documentary Screenplay v1
+version: 1.0
+book_type: Screenplay
+description: >
+  Documentary-format screenplay pipeline. Produces a 5-act voiceover-driven
+  documentary feature (90-120 min) with dossier, treatment, submission pack,
+  and rights package. Modeled on the Robert Smalls pilot.
+
+# Model routing — same rate-limit strategy as the book pipeline.
+# Long-form nuanced prose (dossier, acts, sample, treatment) → Gemini 2.0 Pro (50/day).
+# Shorter marketing / variant / structural work → Flash or Groq Llama.
+preferred_models:
+  dossier: gemini-2.0-pro-exp
+  structure: gemini-2.0-flash-exp
+  # In screenplay mode, "entries" means the 5 Acts, batched one at a time.
+  # Each Act is ~15-25 min of VO — needs the Pro model for prose quality.
+  entries: gemini-2.0-pro-exp
+  # Sample = Act I in full, publication-ready.
+  sample_chapter: gemini-2.0-pro-exp
+  # KDP metadata slot repurposed for the SUBMISSION PACK (logline + treatment + one-pager).
+  kdp_metadata: gemini-2.0-pro-exp
+  # Social variants
+  pins: gemini-2.0-flash-exp
+  tiktok: llama-3.3-70b-versatile
+  shorts: llama-3.3-70b-versatile
+  substack: gemini-2.0-pro-exp
+  # ACX-slot: voice direction + narrator casting for the documentary
+  acx_brief: gemini-2.0-pro-exp
+  # Rights & IP for a screenplay is more elaborate than a book (WGA + copyright deposit + chain of title)
+  rights_ip: gemini-2.0-pro-exp
+
+system_prompt: |
+  You are the GGB Screenplay Pipeline production agent for Gullah Geechee Biz.
+
+  Author of record on all output: Darryl Elliott Brown.
+  Publisher: Gullah Geechee Biz.
+  Written and Directed by: Darryl Elliott Brown.
+  Produced by: Darryl Elliott Brown.
+
+  Every file MUST open with this exact attribution block:
+    **Written and Directed by:** Darryl Elliott Brown
+    **Produced by:** Darryl Elliott Brown
+    **A Gullah Geechee Biz Production**
+    **© 2026 Darryl Elliott Brown. All rights reserved.**
+
+  Non-negotiable rules:
+    - Every historical claim must cite a real, citable primary source with a
+      URL (Library of Congress, National Park Service, NARA, Battlefields
+      Trust, academic press, first-person newspaper archives, etc.). If a
+      source cannot be verified, say so explicitly rather than fabricating.
+    - Archival images/footage must be public-domain-eligible (pre-1928 U.S.,
+      or PD-declared by holder). Note the source and PD status when named.
+    - Living community bearers of Gullah Geechee heritage are honored, never
+      appropriated. Attribute Gullah spirituals, place-names, and language to
+      the community. Do not put words in bearers' mouths.
+    - Corridor scope: NC to FL Sea Islands coastline. Historical events
+      elsewhere are only included when they materially shaped the subject's
+      life or the corridor's history.
+    - Voice: measured, reverent, evidence-forward. The pilot dossier and
+      Robert Smalls Act I are the tone reference. No sensationalism, no
+      speculation dressed as fact.
+    - Compliance: KDP + Draft2Digital for the printable script version.
+      YouTube 2026 AI-disclosure ready for the produced documentary.
+
+  Screenplay format:
+    - Documentary VO screenplay, NOT narrative fiction / Fountain format.
+    - Use the tags: [V.O.], [VISUAL], [MUSIC], [SFX], [LOWER THIRD],
+      [TC hh:mm:ss], [ATTRIBUTION on screen], [FADE].
+    - Every visual must be describable and shootable/archival-sourceable.
+    - Every V.O. paragraph should read out loud in 8-15 seconds. Include
+      timecodes at natural breath points.
+    - When a spiritual, folk song, or Gullah phrase is used, cite it as
+      public-domain traditional AND credit the community source.
+
+stages:
+
+  # =====================================================================
+  # STAGE 1 — DOSSIER
+  # =====================================================================
+  dossier: |
+    Compile a full research dossier for the documentary titled:
+    "{TITLE}: {SUBTITLE}"
+
+    Brief: {BRIEF}
+
+    Produce a markdown document with these sections:
+
+    1. Title block (attribution, runtime target, dossier date)
+    2. Life Timeline (verified) — chronological table with Date | Event | Source (URL)
+    3. Places (with coordinates when relevant, and PD image sources)
+    4. People (contemporaries, allies, adversaries — with sources)
+    5. Primary source inventory (archives, newspapers, letters, records)
+    6. Archival image list (PD-eligible only, with LOC / NARA / state archive URLs)
+    7. Music inventory (Gullah spirituals, era-appropriate PD compositions)
+    8. Cultural sensitivity checkpoints (moments requiring bearer review)
+    9. Fact-check ledger (contested claims + how they are resolved)
+    10. Bibliography (books, academic journals, LOC guides — with URLs)
+
+    Every factual claim needs a citation. If a claim is contested, present
+    both positions with sources. No hallucinated URLs — if you are not sure
+    a source exists, mark it "SOURCE NEEDED" so a human can verify.
+
+    Length target: 4,000-8,000 words. Depth matters more than length.
+
+  # =====================================================================
+  # STAGE 2 — STRUCTURE (5-act beat sheet)
+  # =====================================================================
+  structure: |
+    From the research dossier for "{TITLE}: {SUBTITLE}", produce a 5-act
+    beat sheet for a 90-120 minute documentary feature.
+
+    Structure required:
+      ACT I    (~15 min) — Origin / setting / world-building
+      ACT II   (~20 min) — Rising action / the defining moment
+      ACT III  (~25 min) — Consequences / the freedom won
+      ACT IV   (~25 min) — Rebuilding / political life / setbacks
+      ACT V    (~15 min) — Legacy / present-day / call to remembrance
+
+    For each Act, provide:
+      - Act title (e.g., "Beaufort Born", "The Planter", "Freedom's Captain")
+      - Runtime target (minutes)
+      - Cold open concept (30-90 sec — hook, no exposition)
+      - 4-6 key beats with approximate timecodes
+      - Central emotional arc for the Act
+      - Signature visual motif (e.g., water, chains, hats, hands)
+      - Signature music/sonic motif (e.g., a specific spiritual)
+      - Cultural sensitivity flags (moments requiring bearer review)
+      - Sources anchoring the Act's factual spine
+
+    Output format: markdown with `## ACT I — TITLE`, `## ACT II — TITLE`, etc.
+    Include a top-level "Runtime budget: XX min" line summing the acts.
+
+  # =====================================================================
+  # STAGE 3 — ACTS (batched: one Act at a time, "entries" slot repurposed)
+  # =====================================================================
+  # We reuse the entries slot because the plumbing already batches and
+  # resumes across cron ticks. In screenplay mode, "entries" == the 5 Acts.
+  # Each cron tick generates ONE full Act (~15-25 min of VO script).
+  entries: |
+    Write the full documentary voiceover script for ACT {ACT_NUMBER} —
+    "{ACT_TITLE}" — of "{TITLE}: {SUBTITLE}".
+
+    Runtime target: {ACT_RUNTIME} minutes.
+
+    Use the exact format legend from the pilot Robert Smalls Act I:
+      [V.O.]  — Voiceover narration
+      [VISUAL] — On-screen footage / archival / B-roll
+      [MUSIC] — Score, spiritual, or ambient cue
+      [SFX]   — Sound effect
+      [LOWER THIRD] — On-screen text overlay
+      [TC hh:mm:ss] — Timecode marker at every natural breath break
+      [ATTRIBUTION on screen] — For archival images/footage
+
+    Structure of the Act:
+      - Attribution + title block at top
+      - Legend section
+      - COLD OPEN (30-90 seconds — hook)
+      - Numbered scene sections following the beat sheet from Stage 2
+      - CLOSING TAG (bridge to next Act)
+
+    Voice: measured, reverent, evidence-forward. Every VO paragraph should
+    read in 8-15 seconds. Every VISUAL must be describable and either
+    shootable in the corridor or sourceable from a PD archive.
+
+    Cite every archival image inline with [ATTRIBUTION on screen, small
+    type, lower right:] *Source, Collection*.
+
+    Cite every music cue as either:
+      (a) *Traditional Gullah spiritual, public domain, [community source]*
+      (b) *Original composition by [composer TBD], to be commissioned*
+
+    Return the ACT as a complete standalone markdown document that could be
+    filed as-is with the WGA and used on a shoot.
+
+    IMPORTANT: You must return ONLY the Act. Do not return a JSON array or
+    multiple Acts. One Act per call.
+
+  # =====================================================================
+  # STAGE 4 — SAMPLE (Act I in full, publication-ready)
+  # =====================================================================
+  # In screenplay mode, "sample_chapter" == the full formatted Act I plus
+  # a producer-facing summary of what the reviewer is signing off on.
+  sample_chapter: |
+    You are producing the review-ready version of ACT I for
+    "{TITLE}: {SUBTITLE}".
+
+    Take the Act I draft (attached below) and:
+      1. Add a producer's summary at the top: 3-5 bullets naming the
+         beats, the visual signature, the music signature, and any
+         cultural sensitivity flags a reviewer must approve before Act II
+         can be written.
+      2. Verify every citation is present and formatted consistently.
+      3. Add a "Notes for narrator" appendix at the bottom (pronunciation
+         guide for any Gullah words, place-names, or historical figures).
+      4. Add a "Notes for editor" appendix (music entry/exit points,
+         suggested cut lengths, timecode boundaries where a natural
+         chapter marker could fall on the final YouTube upload).
+
+    Output: one long markdown document, ready for a producer/director
+    to read and sign off on before the pipeline drafts Acts II-V.
+
+  # =====================================================================
+  # STAGE 5 — SUBMISSION PACK (logline + treatment + one-pager)
+  # =====================================================================
+  # KDP-metadata slot repurposed for the film submission pack — this is
+  # what a producer or festival needs to see BEFORE Acts II-V are drafted.
+  kdp_metadata: |
+    Produce a documentary submission pack for "{TITLE}: {SUBTITLE}".
+
+    The pack must contain, in order, three separate sections:
+
+    ## 1. LOGLINE
+    One sentence, 25-40 words. Names the subject, the historic stake, the
+    corridor setting, and the emotional through-line. No cliches, no "in a
+    world where."
+
+    ## 2. TREATMENT (1,500-2,500 words)
+    Prose treatment of the full 5-act arc. Present-tense, cinematic voice.
+    Every claim tied to the dossier. Read as a document a producer could
+    hand to a granting foundation or festival programmer. Structure:
+      - Opening image + hook
+      - Act-by-act narrative walk (approximate timecodes)
+      - Signature visual motifs
+      - Signature music motifs
+      - Ending image + call to remembrance
+
+    ## 3. ONE-PAGER
+    A single-page pitch document (max 400 words) with:
+      - Title, runtime, format (YouTube feature documentary)
+      - Logline
+      - Producer/director credits (Darryl Elliott Brown)
+      - Why this story, why now, why this filmmaker
+      - Comparable films (accurately named — no fabricated comps)
+      - Distribution + audience (YouTube + festival + educational)
+      - Rights posture (all archival is PD-eligible; bearers hold consent)
+
+    The submission pack is the reviewer's decision point BEFORE writing
+    Acts II-V. Get it right.
+
+  # =====================================================================
+  # STAGE 6 — SOCIAL SUB-STAGES
+  # =====================================================================
+  pins: |
+    Create 5 Pinterest pin briefs promoting the documentary
+    "{TITLE}: {SUBTITLE}".
+
+    Each pin should:
+      - Have a specific visual concept tied to a real archival image or
+        corridor location (name the source or location)
+      - Include on-pin text (max 8 words) that stops the scroll
+      - Include a 2-3 sentence pin description with the subject's name,
+        the era, and the emotional stake
+      - Target audience: Gullah Geechee community, Black history educators,
+        documentary film fans, Lowcountry travelers
+      - Zero clickbait. Every claim must be true.
+
+    Output format:
+      ## Pin 1 — [visual concept]
+      **On-pin text:** ...
+      **Description:** ...
+      **Archival source or location:** ...
+
+  tiktok: |
+    Write a 75-second TikTok script promoting the documentary
+    "{TITLE}: {SUBTITLE}".
+
+    Format:
+      [0:00-0:03] HOOK — first-person voice, name the stake in 1 line
+      [0:04-0:15] ESTABLISH — who this person was, in 3 concrete images
+      [0:16-0:45] BEAT — the defining moment (single vivid scene)
+      [0:46-1:05] STAKES — what it meant then, what it means now
+      [1:06-1:15] CTA — where to watch, when it drops
+
+    Voice: reverent, first-person plural ("we", "our people"), Gullah
+    Geechee corridor pride, evidence-not-hype. On-screen text cues for
+    every beat. B-roll suggestions for every beat (archival + corridor).
+
+  shorts: |
+    Write a 55-second YouTube Shorts script for
+    "{TITLE}: {SUBTITLE}".
+
+    Same beat structure as TikTok but slightly slower/more contemplative.
+    Aim for the "I never learned this in school" audience.
+
+    Include the CTA to watch the full documentary on YouTube.
+
+  substack: |
+    Write a Substack launch post announcing "{TITLE}: {SUBTITLE}".
+
+    Structure:
+      - Subject line (5 variants — 40-70 chars each)
+      - Hero image caption
+      - Opening hook (150-200 words, in Darryl's evidence-first voice)
+      - Why this story matters, right now (300-400 words)
+      - What's in the documentary (3-5 bullet beats, no spoilers on Act V)
+      - Watch link placeholder [WATCH ON YOUTUBE]
+      - Community invitation (paid tier gets: dossier PDF, behind-the-scenes,
+        director's notes)
+      - Attribution + rights posture
+
+    Length: 800-1,200 words total post body.
+
+  # =====================================================================
+  # STAGE 10 — VOICE DIRECTION (ACX slot repurposed)
+  # =====================================================================
+  # In screenplay mode, ACX slot becomes voice-direction + narrator-casting.
+  acx_brief: |
+    Produce a narrator voice-direction sheet for the documentary
+    "{TITLE}: {SUBTITLE}".
+
+    Structure:
+      1. Overall tone reference (adjectives + 2-3 named narrators as tone
+         benchmarks, e.g., "Chuck D on The Zen of Chuck", "Angela Bassett
+         on The 1619 Project")
+      2. Per-Act voice notes (energy level, tempo, breath density)
+      3. Pronunciation guide (Gullah words, place-names, historical figures)
+      4. Emotional beat markers (moments where narrator must land emotion,
+         moments where narrator must step back and let visuals carry)
+      5. Recording spec (mic, room treatment, target LUFS, delivery format)
+      6. Casting notes: 3 candidate profiles (Black narrator, ideally from
+         the corridor or with corridor roots, warm mid-register, ability
+         to sit in silence). Include how they should audition (sides from
+         Act I cold open + one dramatic beat from Act III).
+
+    Output length: 1,500-2,500 words.
+
+  # =====================================================================
+  # STAGE 11 — RIGHTS & IP (elaborate for screenplay)
+  # =====================================================================
+  rights_ip: |
+    Produce a complete Rights & IP protection document for the
+    documentary "{TITLE}: {SUBTITLE}".
+
+    Author of record: Darryl Elliott Brown.
+    Publisher: Gullah Geechee Biz.
+
+    Structure required:
+      1. **Chain of title** — every contributor, every asset, every
+         license/consent status. Table form.
+      2. **Copyright registration plan** — U.S. Copyright Office deposit
+         (form PA for screenplay, form MP for finished film later).
+         Deposit copy specification. Filing fee.
+      3. **WGA West registration** — script registration steps and fee.
+      4. **Archival rights ledger** — every archival image/footage cue in
+         the screenplay, with PD status verified. Any non-PD asset must be
+         flagged for either licensing or replacement.
+      5. **Music rights ledger** — spirituals as PD traditional (with
+         community credit), any commissioned score under work-for-hire
+         with named composer TBD.
+      6. **Appearance releases** — template appearance release referenced;
+         list of living contributors requiring signed releases.
+      7. **Fair-use analysis** — for any borderline archival or clip use,
+         a written fair-use argument (purpose, nature, amount, market
+         effect).
+      8. **AI disclosure** — YouTube 2026 AI disclosure text: which stages
+         of production used AI assistance (research, drafting) and which
+         did not (voiceover, direction, final edit).
+      9. **DMCA takedown template** — reference to the existing template.
+      10. **Trademark posture** — Gullah Geechee Biz mark, use of
+         "Gullah Geechee" (regional/cultural term, not trademarked).
+
+    Every recommendation must cite the applicable regulation, form, or
+    fee URL where possible.
+
+  # =====================================================================
+  # Placeholder metadata — screenplay defaults
+  # =====================================================================
+  # entry_count_target in screenplay mode = number of Acts (typically 5)
+  # Each "batch" produces one full Act.
