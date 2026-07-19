@@ -7,8 +7,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from state import new_state, save_state  # noqa: E402
-from build_dashboard import build_dashboard, render_book_card, STATUS_PROGRESS  # noqa: E402
+from state import new_state, save_state, AUTHOR, PUBLISHER  # noqa: E402
+from build_dashboard import build_dashboard, render_book_card, STATUS_PROGRESS, compliance_summary  # noqa: E402
 from state import STATUSES  # noqa: E402
 
 
@@ -49,6 +49,49 @@ def test_dashboard_with_books(tmp_path):
     assert "book-b" in html
     # Final-kit link appears for the ready book
     assert "final-kit.zip" in html
+
+
+def test_compliance_summary_unknown_when_missing():
+    s = new_state("b", "T", "S", "vocabulary-reference-v1", "brief text here", 10)
+    summary = compliance_summary(s)
+    assert summary["gate"] == "UNKNOWN"
+    assert summary["ruleset_version"] == "—"
+    assert summary["checked_at"] == "never"
+    assert summary["author"] == AUTHOR
+
+
+def test_compliance_summary_pass_and_hold():
+    s = new_state("b", "T", "S", "vocabulary-reference-v1", "brief text here", 10)
+    s["compliance"] = {"gate_passed": True, "ruleset_version": "1.1.1",
+                       "checked_at": "2026-07-19T12:00:00+00:00", "violations": []}
+    passed = compliance_summary(s)
+    assert passed["gate"] == "PASS"
+    assert passed["ruleset_version"] == "1.1.1"
+    assert "2026-07-19 12:00:00 UTC" == passed["checked_at"]
+
+    s["compliance"]["gate_passed"] = False
+    assert compliance_summary(s)["gate"] == "HOLD"
+
+
+def test_dashboard_renders_compliance_without_crashing_when_missing(tmp_path):
+    # No compliance block at all — must still render and show UNKNOWN.
+    s = new_state("book-x", "Book X", "Sub", "vocabulary-reference-v1", "A brief long enough", 100)
+    save_state(tmp_path, "book-x", s)
+    html = build_dashboard(tmp_path, "Darrylebrown/ggb-books")
+    assert "Compliance: UNKNOWN" in html
+    assert "Attribution: OK" in html
+    assert "Compliance holds" in html
+
+
+def test_dashboard_shows_hold_and_attribution_drift(tmp_path):
+    s = new_state("book-y", "Book Y", "Sub", "vocabulary-reference-v1", "A brief long enough", 100)
+    s["author"] = "Impostor"
+    s["compliance"] = {"gate_passed": False, "ruleset_version": "1.1.1",
+                       "checked_at": "2026-07-19T12:00:00+00:00", "violations": []}
+    save_state(tmp_path, "book-y", s)
+    html = build_dashboard(tmp_path, "Darrylebrown/ggb-books")
+    assert "Compliance: HOLD" in html
+    assert "Attribution: DRIFT" in html
 
 
 def test_render_book_card_escapes_html():

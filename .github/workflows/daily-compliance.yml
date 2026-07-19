@@ -1,0 +1,96 @@
+name: GGB Daily Attribution Scan
+
+# Once a day, force the locked brand attribution back onto every book and run
+# the compliance gate over the whole catalog so attribution can never drift.
+# 12:00 UTC ≈ 08:00 America/New_York (EDT). Also runnable on demand.
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+# Share the pipeline concurrency group but let a running main-loop tick finish
+# first (cancel-in-progress: false) so the two workflows don't fight over the
+# ggb-books working tree / push.
+concurrency:
+  group: ggb-pipeline
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout pipeline repo
+        uses: actions/checkout@v4
+
+      - name: Checkout books repo (private)
+        uses: actions/checkout@v4
+        with:
+          repository: Darrylebrown/ggb-books
+          token: ${{ secrets.GGB_BOOKS_TOKEN }}
+          path: ggb-books
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Repair brand attribution (force author/publisher)
+        run: python scripts/repair_attribution.py --books-root ggb-books
+
+      - name: Run compliance gate over all books (apply + hold)
+        run: |
+          set -euo pipefail
+          for dir in ggb-books/books/*/; do
+            book_id="$(basename "$dir")"
+            [[ -f "$dir/state.json" ]] || continue
+            echo "::group::compliance $book_id"
+            # A block returns exit 2; that is an expected outcome (hold), not a
+            # workflow failure, so swallow it and keep scanning the catalog.
+            python scripts/compliance.py --books-root ggb-books --book-id "$book_id" --apply --hold || true
+            echo "::endgroup::"
+          done
+
+      - name: Commit + push repairs/holds to ggb-books (master)
+        working-directory: ggb-books
+        run: |
+          git config user.name "GGB Pipeline Bot"
+          git config user.email "bot@gullahgeecheebiz.com"
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit -m "Daily attribution scan: repair + compliance $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push
+          else
+            echo "[daily-compliance] No changes to commit."
+          fi
+
+      - name: Rebuild status dashboard
+        run: python scripts/build_dashboard.py --books-root ggb-books --output dashboard/index.html
+
+      - name: Upload dashboard as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard
+
+  deploy-pages:
+    needs: scan
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

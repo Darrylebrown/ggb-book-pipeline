@@ -53,6 +53,34 @@ STATUS_COLOR: dict[str, str] = {
 }
 
 
+def compliance_summary(state: dict) -> dict:
+    """Extract the compliance fields the dashboard shows for one book.
+
+    Returns a dict with a normalized gate label (PASS / HOLD / UNKNOWN), the
+    ruleset version, the last checked_at timestamp, and the stamped
+    author/publisher. Missing compliance data yields an UNKNOWN gate — the
+    dashboard never crashes on a book that has not been scanned yet.
+    """
+    comp = state.get("compliance") or {}
+    if "gate_passed" in comp:
+        gate = "PASS" if comp.get("gate_passed") else "HOLD"
+    else:
+        gate = "UNKNOWN"
+
+    checked_at = comp.get("checked_at") or ""
+    if checked_at:
+        checked_at = checked_at.replace("T", " ").split(".")[0].split("+")[0].strip() + " UTC"
+
+    return {
+        "gate": gate,
+        "gate_class": {"PASS": "done", "HOLD": "error", "UNKNOWN": "paused"}[gate],
+        "ruleset_version": comp.get("ruleset_version") or "—",
+        "checked_at": checked_at or "never",
+        "author": state.get("author") or "—",
+        "publisher": state.get("publisher") or "—",
+    }
+
+
 def status_class(status: str) -> str:
     if status == "Error":
         return "error"
@@ -88,6 +116,10 @@ def render_book_card(book_id: str, state: dict, books_repo: str) -> str:
         except Exception:
             pass
 
+    comp = compliance_summary(state)
+    attribution_ok = comp["author"] == AUTHOR and comp["publisher"] == PUBLISHER
+    attribution_class = "done" if attribution_ok else "error"
+
     book_url = f"https://github.com/{books_repo}/tree/master/books/{book_id}"
     kit_path = state.get("assets_generated", {}).get("final_kit")
     kit_link = ""
@@ -117,6 +149,11 @@ def render_book_card(book_id: str, state: dict, books_repo: str) -> str:
         <div class="stat"><span class="stat-value">{stages_done}</span><span class="stat-label">Stages complete</span></div>
         <div class="stat"><span class="stat-value">{len(runs)}</span><span class="stat-label">Total LLM runs</span></div>
       </div>
+      <div class="compliance-row">
+        <span class="pill pill-{comp['gate_class']}" title="Compliance gate (ruleset {html.escape(comp['ruleset_version'])})">Compliance: {comp['gate']}</span>
+        <span class="pill pill-{attribution_class}" title="author: {html.escape(comp['author'])} · publisher: {html.escape(comp['publisher'])}">Attribution: {'OK' if attribution_ok else 'DRIFT'}</span>
+        <span class="meta">Ruleset {html.escape(comp['ruleset_version'])} · checked {html.escape(comp['checked_at'])}</span>
+      </div>
       <div class="footer-row">
         <span class="last-run">Last run: {last_run_str}</span>
         <a class="btn" href="{book_url}">View files</a>
@@ -132,10 +169,11 @@ def build_dashboard(books_root: Path, books_repo: str) -> str:
     if not cards:
         cards = '<p class="empty">No books yet. Trigger the "New book intake" workflow to seed one.</p>'
 
+    states = {bid: load_state(books_root, bid) for bid in book_ids}
     total_books = len(book_ids)
-    done = sum(1 for bid in book_ids if load_state(books_root, bid)["status"] in ("Ready for KDP handoff", "Published"))
-    in_review = sum(1 for bid in book_ids if "awaiting review" in load_state(books_root, bid)["status"])
-    errors = sum(1 for bid in book_ids if load_state(books_root, bid)["status"] == "Error")
+    done = sum(1 for s in states.values() if s["status"] in ("Ready for KDP handoff", "Published"))
+    in_review = sum(1 for s in states.values() if "awaiting review" in s["status"])
+    holds = sum(1 for s in states.values() if compliance_summary(s)["gate"] == "HOLD")
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -202,6 +240,7 @@ def build_dashboard(books_root: Path, books_repo: str) -> str:
   .stat {{ display: flex; flex-direction: column; }}
   .stat-value {{ font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }}
   .stat-label {{ font-size: 11px; color: var(--muted); }}
+  .compliance-row {{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }}
   .footer-row {{ display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--border); }}
   .last-run {{ color: var(--muted); font-size: 12px; }}
   .btn {{ display: inline-block; padding: 6px 12px; background: var(--primary); color: white; text-decoration: none; border-radius: 4px; font-size: 13px; }}
@@ -222,7 +261,7 @@ def build_dashboard(books_root: Path, books_repo: str) -> str:
     <div class="kpi"><span class="value">{total_books}</span><span class="label">Books in pipeline</span></div>
     <div class="kpi"><span class="value">{in_review}</span><span class="label">Awaiting review</span></div>
     <div class="kpi"><span class="value">{done}</span><span class="label">Ready for KDP</span></div>
-    <div class="kpi"><span class="value">{errors}</span><span class="label">Errors</span></div>
+    <div class="kpi"><span class="value">{holds}</span><span class="label">Compliance holds</span></div>
   </div>
 
   <section class="grid">
