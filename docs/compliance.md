@@ -88,6 +88,53 @@ python scripts/compliance.py --books-root ../ggb-books --book-id de-gullah-book 
 checked_at, violations}`. `--hold` additionally sets `Paused` /
 `compliance_hold` and a summarizing `last_error` when a block is found.
 
+## Daily attribution scan (drift can't survive a day)
+
+Beyond the per-tick pipeline gate, a dedicated workflow
+[`.github/workflows/daily-compliance.yml`](../.github/workflows/daily-compliance.yml)
+runs once a day (12:00 UTC ≈ 08:00 ET) and on demand via **workflow_dispatch**.
+It shares the `ggb-pipeline` concurrency group so it never races the main loop.
+
+Each run:
+
+1. **Repairs attribution** — [`scripts/repair_attribution.py`](../scripts/repair_attribution.py)
+   walks every book and force-sets `state["author"]` / `state["publisher"]`
+   back to the locked `AUTHOR` / `PUBLISHER` constants. Any hand-edit that
+   drifted the attribution is silently corrected (the repair always exits 0).
+2. **Runs the compliance gate** over every book with `--apply --hold`, so a
+   fresh `state["compliance"]` is written and any blocking book is held.
+3. **Commits + pushes** repairs/holds to `ggb-books` under the same
+   `GGB Pipeline Bot` identity the main loop uses.
+4. **Rebuilds and deploys the dashboard** so compliance status is visible the
+   same day.
+
+Run the repair locally:
+
+```bash
+# Report what would change (no writes)
+python scripts/repair_attribution.py --books-root ../ggb-books --dry-run
+
+# Force the locked attribution onto every book
+python scripts/repair_attribution.py --books-root ../ggb-books
+```
+
+## Reading the dashboard badges
+
+Each book card on the [status dashboard](../scripts/build_dashboard.py) carries a
+compliance row:
+
+- **Compliance: PASS / HOLD / UNKNOWN** — the last gate result from
+  `state["compliance"].gate_passed`. `UNKNOWN` means the book has not been
+  scanned yet (no `compliance` block).
+- **Attribution: OK / DRIFT** — green `OK` when the stamped author/publisher
+  match the locked constants; magenta `DRIFT` otherwise (hover for the actual
+  values). After a daily scan this should always read `OK`.
+- **Ruleset N · checked \<timestamp\>** — the `ruleset_version` and
+  `checked_at` from the last compliance run (`never` if unscanned).
+
+The KPI strip also shows a **Compliance holds** counter (books whose last gate
+result was a block).
+
 ## Clearing a hold
 
 Fix the offending content (or metadata), then re-run with `--apply` (and set the
