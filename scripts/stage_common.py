@@ -22,7 +22,7 @@ from typing import Any, Callable, Optional
 import yaml
 
 sys.path.insert(0, str(Path(__file__).parent))
-from state import load_state, save_state, record_run, mark_error  # noqa: E402
+from state import load_state, save_state, record_run, mark_error, AUTHOR, PUBLISHER  # noqa: E402
 from llm import call_llm, LLMResult  # noqa: E402
 from compliance import check_text, enforce_or_hold  # noqa: E402
 
@@ -168,8 +168,9 @@ def run_simple_llm_stage(
         "TITLE": ctx.state.get("working_title", ""),
         "SUBTITLE": ctx.state.get("subtitle", ""),
         "BRIEF": ctx.state.get("one_line_brief", ""),
-        "AUTHOR": ctx.state.get("author", "Darryl Elliott Brown"),
-        "PUBLISHER": ctx.state.get("publisher", "Gullah Geechee Biz"),
+        # Hardwired — never read author/publisher from state, always the locked constants.
+        "AUTHOR": AUTHOR,
+        "PUBLISHER": PUBLISHER,
         "ENTRY_COUNT_TARGET": str(ctx.state.get("entry_count_target", 370)),
         "SECTION_COUNT": str(ctx.state.get("section_count", 10)),
     }

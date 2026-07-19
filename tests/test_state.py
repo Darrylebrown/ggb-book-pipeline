@@ -1,6 +1,7 @@
 """Smoke tests for state.py — no external deps required."""
 from __future__ import annotations
 
+import inspect
 import sys
 from pathlib import Path
 import tempfile
@@ -8,12 +9,32 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from state import (  # noqa: E402
     STATUSES,
+    AUTHOR,
+    PUBLISHER,
     new_state,
     save_state,
     load_state,
     all_book_ids,
     books_ready_to_advance,
 )
+
+
+def test_locked_constants_exact() -> None:
+    assert AUTHOR == "Darryl Elliott Brown"
+    assert PUBLISHER == "Gullah Geechee Biz"
+
+
+def test_new_state_hardwires_author_publisher() -> None:
+    s = new_state("b", "Title", "Sub", "vocabulary-reference-v1", "Brief text long enough.")
+    assert s["author"] == AUTHOR
+    assert s["publisher"] == PUBLISHER
+
+
+def test_new_state_has_no_author_publisher_params() -> None:
+    """Author/publisher must not be overridable via new_state() arguments."""
+    params = inspect.signature(new_state).parameters
+    assert "author" not in params
+    assert "publisher" not in params
 
 
 def test_statuses_count() -> None:
