@@ -53,6 +53,155 @@ STATUS_COLOR: dict[str, str] = {
 }
 
 
+# --- Free Stack Map (LOCKED ops standard) ----------------------------------
+# The canonical zero-fixed-cost stack: free tiers + OSS first. Each row is
+# (layer, tool/service, tier, monthly cost, note). Rendered as a table on
+# free-stack.html. This is documentation of the locked standard — not live
+# telemetry — so the values are static and reviewed by hand.
+FREE_STACK_LAYERS: list[tuple[str, str, str, str, str]] = [
+    ("Brand", "Author + Publisher (hardwired)", "N/A", "$0", "Locked attribution, never configurable"),
+    ("Git books", "ggb-books private repo", "GitHub Free", "$0", "state.json per book is the database"),
+    ("Pipeline Actions", "GitHub Actions cron", "Free 2,000 min/mo", "$0", "Orchestrates every stage on a 15-min tick"),
+    ("LLM free tiers", "Gemini Pro + Groq Llama 3.3", "Free tier", "$0", "50 Gemini req/day + effectively-unlimited Groq"),
+    ("Compliance daily", "compliance.py gate", "OSS", "$0", "Ruleset gate holds books that fail brand/ethics"),
+    ("Site Pages", "GitHub Pages", "Free", "$0", "Serves this dashboard + Free Stack Map"),
+    ("Airtable", "Content calendar / metadata", "Free plan", "$0", "1,200 records/base is plenty at pilot scale"),
+    ("Make pins", "Make.com scenarios", "Core 20K ops/mo", "$0", "~180–200 pins/day max on Make alone (see note)"),
+    ("Blotato heroes", "Blotato hero images", "Free tier", "$0", "Launch-day hero art, no paid render"),
+    ("Substack", "Newsletter + teasers", "Free", "$0", "Owned audience channel, pay-on-growth only"),
+    ("KDP/D2D/ACX", "Amazon KDP · Draft2Digital · ACX", "Pay-on-sale", "$0 upfront", "No fixed cost; royalties only when a copy sells"),
+    ("Printful/Stripe", "Merch print-on-demand + payments", "Pay-per-txn", "$0 upfront", "No monthly fee; per-transaction only"),
+    ("Sponsors", "GitHub Sponsors / donations", "Free", "$0", "Optional inbound revenue, no cost to run"),
+    ("Local render box", "Own machine for heavy renders", "Owned hardware", "$0", "Fallback compute; electricity only, no cloud bill"),
+]
+
+# Short rules that govern what is allowed onto the stack.
+FREE_STACK_RULES: list[str] = [
+    "Zero fixed cost: no service may carry a recurring monthly bill.",
+    "Free tiers + OSS first; reach for paid only when free is exhausted.",
+    "Pay-on-sale / pay-per-transaction is allowed (KDP, D2D, ACX, Stripe, Printful).",
+    "Brand attribution (Author + Publisher) is hardwired and never configurable.",
+    "Prefer owned assets (Git, local render box, Substack list) over rented ones.",
+    "No bulk pin blasting — respect scenario rates; scale with lanes, not spend.",
+]
+
+# The multi-lane pin plan, documented as status text (not fake live counts).
+PIN_FREE_STACK_NOTE: str = (
+    "Make Core (20K ops/mo) tops out around <strong>180–200 pins/day</strong> on Make alone. "
+    "The canonical 500 pins/day target needs a <strong>multi-lane plan</strong>: "
+    "Make (~180/day) + GitHub Actions (~300/day) run side by side. "
+    "These are plan capacities, not live pin counts."
+)
+
+
+# Shared page CSS so index.html and free-stack.html look identical. Kept as a
+# plain string (single braces) rather than inside an f-string.
+_PAGE_CSS = """
+  :root {
+    --bg: #F7F6F2;
+    --surface: #FBFBF9;
+    --border: #D4D1CA;
+    --text: #28251D;
+    --muted: #7A7974;
+    --primary: #01696F;
+    --error: #A12C7B;
+    --success: #437A22;
+    --warning: #964219;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    line-height: 1.5;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  header.top { margin-bottom: 16px; }
+  header.top h1 { font-size: 32px; margin: 0 0 4px; letter-spacing: -0.5px; }
+  header.top .sub { color: var(--muted); font-size: 14px; margin: 0; }
+  .tabs { display: flex; gap: 8px; margin: 20px 0 8px; border-bottom: 1px solid var(--border); }
+  .tabs a { padding: 10px 16px; text-decoration: none; color: var(--muted); font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 24px 0; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .kpi .value { font-size: 28px; font-weight: 600; display: block; font-variant-numeric: tabular-nums; }
+  .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .card h2 { font-size: 18px; margin: 0; }
+  .card .subtitle { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+  .status-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+  .pill-in-progress { background: #FFF3E0; color: #964219; }
+  .pill-review { background: #FFF9DB; color: #6B5B00; }
+  .pill-done { background: #E8F5E9; color: var(--success); }
+  .pill-error { background: #FBE4F0; color: var(--error); }
+  .pill-paused { background: #EEEEEE; color: var(--muted); }
+  .meta { color: var(--muted); font-size: 12px; }
+  .meta code { background: #F0EFEB; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .progress-wrap { margin: 8px 0; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .progress-bar { background: #EAE8E1; height: 8px; border-radius: 4px; overflow: hidden; }
+  .progress-fill { background: var(--primary); height: 100%; transition: width 400ms ease; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat { display: flex; flex-direction: column; }
+  .stat-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat-label { font-size: 11px; color: var(--muted); }
+  .compliance-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+  .footer-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--border); }
+  .last-run { color: var(--muted); font-size: 12px; }
+  .btn { display: inline-block; padding: 6px 12px; background: var(--primary); color: white; text-decoration: none; border-radius: 4px; font-size: 13px; }
+  .btn:hover { background: #0C4E54; }
+  .empty { background: var(--surface); border: 1px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; color: var(--muted); }
+  footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+  footer a { color: var(--primary); }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin: 16px 0; }
+  .panel h2 { font-size: 20px; margin: 0 0 4px; }
+  .panel .lede { color: var(--muted); font-size: 14px; margin: 0 0 8px; font-style: italic; }
+  .credits { font-size: 13px; margin: 8px 0 0; }
+  .stack-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  .stack-table th, .stack-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .stack-table th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stack-table tbody tr:last-child td { border-bottom: none; }
+  .stack-table .layer { font-weight: 600; white-space: nowrap; }
+  .cost-zero { color: var(--success); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rules { margin: 8px 0 0; padding-left: 20px; }
+  .rules li { margin: 4px 0; font-size: 14px; }
+  .note { background: #FFF9DB; border: 1px solid #E7DFB0; border-radius: 8px; padding: 14px 16px; font-size: 13px; color: #5B4E00; }
+"""
+
+
+def _page_head(title: str) -> str:
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<style>{_PAGE_CSS}</style>
+</head>"""
+
+
+def _tabs(active: str) -> str:
+    """Nav tabs linking the two generated pages. `active` is 'books' or 'stack'."""
+    books_cls = " active" if active == "books" else ""
+    stack_cls = " active" if active == "stack" else ""
+    return f"""  <nav class="tabs">
+    <a class="tab{books_cls}" href="index.html">Book status</a>
+    <a class="tab{stack_cls}" href="free-stack.html">Free Stack Map</a>
+  </nav>"""
+
+
 def compliance_summary(state: dict) -> dict:
     """Extract the compliance fields the dashboard shows for one book.
 
@@ -177,85 +326,15 @@ def build_dashboard(books_root: Path, books_repo: str) -> str:
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GGB Book Pipeline — Status</title>
-<style>
-  :root {{
-    --bg: #F7F6F2;
-    --surface: #FBFBF9;
-    --border: #D4D1CA;
-    --text: #28251D;
-    --muted: #7A7974;
-    --primary: #01696F;
-    --error: #A12C7B;
-    --success: #437A22;
-    --warning: #964219;
-  }}
-  * {{ box-sizing: border-box; }}
-  body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    margin: 0;
-    line-height: 1.5;
-  }}
-  .container {{ max-width: 1100px; margin: 0 auto; padding: 32px 24px; }}
-  header.top {{ margin-bottom: 32px; }}
-  header.top h1 {{ font-size: 32px; margin: 0 0 4px; letter-spacing: -0.5px; }}
-  header.top .sub {{ color: var(--muted); font-size: 14px; margin: 0; }}
-  .kpi-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 24px 0; }}
-  .kpi {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }}
-  .kpi .value {{ font-size: 28px; font-weight: 600; display: block; font-variant-numeric: tabular-nums; }}
-  .kpi .label {{ font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }}
-  .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }}
-  .card {{
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }}
-  .card h2 {{ font-size: 18px; margin: 0; }}
-  .card .subtitle {{ color: var(--muted); font-size: 13px; margin: 4px 0 0; }}
-  .status-row {{ display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }}
-  .pill {{ display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }}
-  .pill-in-progress {{ background: #FFF3E0; color: #964219; }}
-  .pill-review {{ background: #FFF9DB; color: #6B5B00; }}
-  .pill-done {{ background: #E8F5E9; color: var(--success); }}
-  .pill-error {{ background: #FBE4F0; color: var(--error); }}
-  .pill-paused {{ background: #EEEEEE; color: var(--muted); }}
-  .meta {{ color: var(--muted); font-size: 12px; }}
-  .meta code {{ background: #F0EFEB; padding: 2px 6px; border-radius: 4px; font-size: 11px; }}
-  .progress-wrap {{ margin: 8px 0; }}
-  .progress-label {{ display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }}
-  .progress-bar {{ background: #EAE8E1; height: 8px; border-radius: 4px; overflow: hidden; }}
-  .progress-fill {{ background: var(--primary); height: 100%; transition: width 400ms ease; }}
-  .stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }}
-  .stat {{ display: flex; flex-direction: column; }}
-  .stat-value {{ font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }}
-  .stat-label {{ font-size: 11px; color: var(--muted); }}
-  .compliance-row {{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }}
-  .footer-row {{ display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--border); }}
-  .last-run {{ color: var(--muted); font-size: 12px; }}
-  .btn {{ display: inline-block; padding: 6px 12px; background: var(--primary); color: white; text-decoration: none; border-radius: 4px; font-size: 13px; }}
-  .btn:hover {{ background: #0C4E54; }}
-  .empty {{ background: var(--surface); border: 1px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; color: var(--muted); }}
-  footer {{ margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }}
-  footer a {{ color: var(--primary); }}
-</style>
-</head>
+    return f"""{_page_head("GGB Book Pipeline — Status")}
 <body>
 <div class="container">
   <header class="top">
     <h1>GGB Book Pipeline</h1>
     <p class="sub">Zero-cost book production status · Last built {now}</p>
   </header>
+
+{_tabs("books")}
 
   <div class="kpi-row">
     <div class="kpi"><span class="value">{total_books}</span><span class="label">Books in pipeline</span></div>
@@ -282,6 +361,101 @@ def build_dashboard(books_root: Path, books_repo: str) -> str:
 """
 
 
+def _render_stack_rows() -> str:
+    rows = []
+    for layer, tool, tier, cost, note in FREE_STACK_LAYERS:
+        rows.append(
+            f"      <tr>"
+            f"<td class=\"layer\">{html.escape(layer)}</td>"
+            f"<td>{html.escape(tool)}</td>"
+            f"<td>{html.escape(tier)}</td>"
+            f"<td class=\"cost-zero\">{html.escape(cost)}</td>"
+            f"<td class=\"meta\">{html.escape(note)}</td>"
+            f"</tr>"
+        )
+    return "\n".join(rows)
+
+
+def build_free_stack(books_root: Path, books_repo: str) -> str:
+    """Render free-stack.html — the LOCKED Free Stack Map ops standard.
+
+    Shows the zero-fixed-cost stack table, selection rules, the multi-lane pin
+    plan note, and live-ish KPIs pulled from book state (book count, compliance
+    holds, attribution OK). Never crashes on a missing/empty books_root.
+    """
+    book_ids = sorted(all_book_ids(books_root))
+    states = {bid: load_state(books_root, bid) for bid in book_ids}
+    total_books = len(book_ids)
+    holds = sum(1 for s in states.values() if compliance_summary(s)["gate"] == "HOLD")
+    attribution_ok = sum(
+        1 for s in states.values()
+        if (s.get("author") or "") == AUTHOR and (s.get("publisher") or "") == PUBLISHER
+    )
+
+    rules = "\n".join(f"      <li>{html.escape(r)}</li>" for r in FREE_STACK_RULES)
+    stack_rows = _render_stack_rows()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    return f"""{_page_head("Free Stack Map — GGB Book Pipeline")}
+<body>
+<div class="container">
+  <header class="top">
+    <h1>Free Stack Map <span class="pill pill-done">LOCKED ops standard</span></h1>
+    <p class="sub">Dare to be great on free rails · $0 fixed cost · Last built {now}</p>
+  </header>
+
+{_tabs("stack")}
+
+  <div class="panel">
+    <p class="lede">Free tiers + OSS first. Zero recurring bill. Revenue only pays on sale.</p>
+    <p class="credits">Hardwired credits — <strong>Author:</strong> {AUTHOR} · <strong>Publisher:</strong> {PUBLISHER}</p>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi"><span class="value">{total_books}</span><span class="label">Books in pipeline</span></div>
+    <div class="kpi"><span class="value">{holds}</span><span class="label">Compliance holds</span></div>
+    <div class="kpi"><span class="value">{attribution_ok} / {total_books}</span><span class="label">Attribution OK</span></div>
+    <div class="kpi"><span class="value">$0</span><span class="label">Fixed monthly cost</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>The stack</h2>
+    <table class="stack-table">
+      <thead>
+        <tr><th>Layer</th><th>Tool / service</th><th>Tier</th><th>Cost</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+{stack_rows}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Selection rules</h2>
+    <ul class="rules">
+{rules}
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h2>Pin Free Stack</h2>
+    <p class="note">{PIN_FREE_STACK_NOTE}</p>
+  </div>
+
+  <footer>
+    <p>
+      Pipeline repo: <a href="https://github.com/{books_repo.split('/')[0]}/ggb-book-pipeline">ggb-book-pipeline</a> ·
+      Books repo: <a href="https://github.com/{books_repo}">{books_repo}</a> ·
+      Author: {AUTHOR} · Publisher: {PUBLISHER}
+    </p>
+    <p>Free Stack Map is the locked ops standard: every layer runs on a free tier, OSS, or pay-on-sale — no fixed monthly cost.</p>
+  </footer>
+</div>
+</body>
+</html>
+"""
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--books-root", required=True, help="Path to cloned ggb-books repo")
@@ -289,11 +463,19 @@ def main() -> None:
     parser.add_argument("--output", default="dashboard/index.html")
     args = parser.parse_args()
 
-    html_str = build_dashboard(Path(args.books_root), args.books_repo)
+    books_root = Path(args.books_root)
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
+
+    html_str = build_dashboard(books_root, args.books_repo)
     out.write_text(html_str)
     print(f"[dashboard] Wrote {out} ({len(html_str)} bytes)")
+
+    # Generate the Free Stack Map alongside index.html so Pages serves both.
+    stack_out = out.parent / "free-stack.html"
+    stack_html = build_free_stack(books_root, args.books_repo)
+    stack_out.write_text(stack_html)
+    print(f"[dashboard] Wrote {stack_out} ({len(stack_html)} bytes)")
 
 
 if __name__ == "__main__":
