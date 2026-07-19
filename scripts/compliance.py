@@ -1,4 +1,4 @@
-"""GGB compliance gate — ruleset v1.1.
+"""GGB compliance gate — ruleset v1.1.1 (author/publisher hardwired).
 
 Only compliant material may advance through the pipeline. A failing check
 produces a *block*: the book is held (status ``Paused``, current_stage
@@ -38,11 +38,13 @@ from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-RULESET_VERSION = "1.1"
+# Ruleset 1.1.1: author/publisher attribution hardwired — the brand constants
+# are imported from the single source of truth in state.py (no string drift).
+RULESET_VERSION = "1.1.1"
 
 # --- Brand constants (hard) -------------------------------------------------
-EXPECTED_AUTHOR = "Darryl Elliott Brown"
-EXPECTED_PUBLISHER = "Gullah Geechee Biz"
+# Imported from state.py so there is exactly one definition of each string.
+from state import AUTHOR as EXPECTED_AUTHOR, PUBLISHER as EXPECTED_PUBLISHER  # noqa: E402
 
 # --- Forbidden brand markers (block) ----------------------------------------
 # Each entry: (regex, code, human detail). Case-insensitive.

@@ -1,4 +1,4 @@
-"""Tests for the compliance gate (ruleset v1.1)."""
+"""Tests for the compliance gate (ruleset v1.1.1)."""
 from __future__ import annotations
 
 import sys
@@ -7,15 +7,40 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
+import compliance  # noqa: E402
 from compliance import (  # noqa: E402
     RULESET_VERSION,
+    EXPECTED_AUTHOR,
+    EXPECTED_PUBLISHER,
     check_text,
     check_book,
     check_kdp_metadata_file,
     enforce_or_hold,
     is_advance_allowed,
 )
-from state import new_state, save_state, load_state, books_ready_to_advance  # noqa: E402
+import state  # noqa: E402
+from state import (  # noqa: E402
+    AUTHOR,
+    PUBLISHER,
+    new_state,
+    save_state,
+    load_state,
+    books_ready_to_advance,
+)
+
+
+def test_ruleset_version_bumped() -> None:
+    assert RULESET_VERSION == "1.1.1"
+
+
+def test_compliance_constants_are_single_source() -> None:
+    """Compliance must import the exact same constant objects as state — no drift."""
+    assert EXPECTED_AUTHOR == "Darryl Elliott Brown"
+    assert EXPECTED_PUBLISHER == "Gullah Geechee Biz"
+    assert EXPECTED_AUTHOR == AUTHOR
+    assert EXPECTED_PUBLISHER == PUBLISHER
+    assert compliance.EXPECTED_AUTHOR is state.AUTHOR
+    assert compliance.EXPECTED_PUBLISHER is state.PUBLISHER
 
 
 VALID_KDP = """# KDP + Draft2Digital Metadata
@@ -206,3 +231,27 @@ def test_is_advance_allowed() -> None:
         root = Path(tmp)
         _make_book(root)
         assert is_advance_allowed(root, "test-book") is True
+
+
+def test_forced_wrong_author_after_new_state_is_blocked() -> None:
+    """Even if someone hand-edits state to a wrong author and saves, the
+    compliance gate blocks the book from advancing and places it on hold."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        s = _make_book(root, book_id="forced", title="Forced Book")
+        # Tamper: overwrite the hardwired author/publisher directly on the dict.
+        s["author"] = "Impostor Author"
+        s["publisher"] = "Rogue Press"
+        s["status"] = "Brief received"
+        save_state(root, "forced", s)
+
+        assert is_advance_allowed(root, "forced") is False
+        ready = books_ready_to_advance(root)
+        assert "forced" not in ready
+        held = load_state(root, "forced")
+        assert held["status"] == "Paused"
+        assert held["current_stage"] == "compliance_hold"
+        report = check_book(held, root / "books" / "forced", scan_outputs=False)
+        codes = {v.code for v in report.blocks}
+        assert "intake.author_mismatch" in codes
+        assert "intake.publisher_mismatch" in codes

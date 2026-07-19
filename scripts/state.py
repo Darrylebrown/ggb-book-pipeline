@@ -15,6 +15,14 @@ from pathlib import Path
 from typing import Optional
 
 
+# --- Locked brand attribution (single source of truth) ---------------------
+# These are hardwired and MUST NOT be configurable anywhere in the pipeline.
+# Every module that needs the author/publisher imports these constants; the
+# compliance gate imports the same names so the strings can never drift.
+AUTHOR = "Darryl Elliott Brown"
+PUBLISHER = "Gullah Geechee Biz"
+
+
 # The 20 canonical pipeline statuses. Do not add new ones without updating STAGE_MAP too.
 STATUSES = [
     "New",
@@ -128,8 +136,6 @@ def new_state(
     subtitle: str,
     prompt_template: str,
     one_line_brief: str,
-    author: str = "Darryl Elliott Brown",
-    publisher: str = "Gullah Geechee Biz",
     book_type: str = "Reference",
     section_count: int = 10,
     entry_count_target: int = 370,
@@ -140,7 +146,12 @@ def new_state(
     edition: str = "Edition 1",
     target_publish_date: Optional[str] = None,
 ) -> dict:
-    """Create a fresh state.json dict for a new book."""
+    """Create a fresh state.json dict for a new book.
+
+    Author and publisher are hardwired to the locked ``AUTHOR`` / ``PUBLISHER``
+    constants and are intentionally NOT parameters — brand attribution can
+    never be overridden at intake.
+    """
     return {
         "book_id": book_id,
         "working_title": working_title,
@@ -148,8 +159,8 @@ def new_state(
         "series": series,
         "edition": edition,
         "formats": formats or ["Paperback", "eBook", "Audiobook"],
-        "author": author,
-        "publisher": publisher,
+        "author": AUTHOR,
+        "publisher": PUBLISHER,
         "book_type": book_type,
         "prompt_template": prompt_template,
         "corridor_scope": corridor_scope or ["NC", "SC", "GA", "FL"],

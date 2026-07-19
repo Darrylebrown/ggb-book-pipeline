@@ -1,9 +1,16 @@
-# Compliance Gate (ruleset v1.1)
+# Compliance Gate (ruleset v1.1.1)
 
 The pipeline enforces a **hard compliance gate**: only compliant material may
 advance. A failing check is a *block* — the book is placed on a compliance hold
 (`status: "Paused"`, `current_stage: "compliance_hold"`) and never advances
 silently. The gate is implemented in [`scripts/compliance.py`](../scripts/compliance.py).
+
+**Ruleset 1.1.1 — author/publisher hardwired.** The locked brand attribution
+(`Darryl Elliott Brown` / `Gullah Geechee Biz`) is defined exactly once, in
+[`scripts/state.py`](../scripts/state.py) as `AUTHOR` / `PUBLISHER`, and every
+other module (including the compliance gate) imports those constants. It is not
+a configurable value: `new_state()` takes no author/publisher arguments and
+always stamps the constants, so the strings can never drift or be overridden.
 
 ## Where the gate runs
 

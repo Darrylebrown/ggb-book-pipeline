@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from state import load_state, save_state, mark_error  # noqa: E402
+from state import load_state, save_state, mark_error, AUTHOR, PUBLISHER  # noqa: E402
 
 
 BOOK_KIT_FILES = [
@@ -60,8 +60,9 @@ def kit_files_for(state: dict) -> list:
 
 def build_readme(state: dict) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    author = state.get("author", "Darryl Elliott Brown")
-    publisher = state.get("publisher", "Gullah Geechee Biz")
+    # Hardwired brand attribution — never read from state.
+    author = AUTHOR
+    publisher = PUBLISHER
     entries_count = state.get("assets_generated", {}).get("entries_count", 0)
     if is_screenplay(state):
         return build_screenplay_readme(state, now, author, publisher, entries_count)

@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from state import STATUSES, all_book_ids, load_state  # noqa: E402
+from state import STATUSES, all_book_ids, load_state, AUTHOR, PUBLISHER  # noqa: E402
 
 
 # Map each status to a progress percentage (0-100) for the progress bar
@@ -233,7 +233,7 @@ def build_dashboard(books_root: Path, books_repo: str) -> str:
     <p>
       Pipeline repo: <a href="https://github.com/{books_repo.split('/')[0]}/ggb-book-pipeline">ggb-book-pipeline</a> ·
       Books repo: <a href="https://github.com/{books_repo}">{books_repo}</a> ·
-      Author: Darryl Elliott Brown · Publisher: Gullah Geechee Biz
+      Author: {AUTHOR} · Publisher: {PUBLISHER}
     </p>
     <p>Every book kit in this pipeline is produced at $0 cash cost using GitHub Actions + free-tier LLM APIs.</p>
   </footer>
