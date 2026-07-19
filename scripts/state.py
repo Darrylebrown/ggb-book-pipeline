@@ -90,17 +90,35 @@ def all_book_ids(books_root: Path) -> list[str]:
 
 
 def books_ready_to_advance(books_root: Path) -> list[str]:
-    """Return book_ids whose current status allows automated advancement."""
+    """Return book_ids whose status allows advancement AND pass compliance.
+
+    A book only advances if it clears the compliance gate. If a prior gate
+    result exists in ``state.compliance`` and it blocked, the book is skipped.
+    Otherwise a lightweight intake check runs (scan_outputs=False); on failure
+    the book is placed on compliance hold and excluded.
+    """
+    # Imported lazily to avoid a circular import at module load time.
+    from compliance import check_book, enforce_or_hold
+
     ready: list[str] = []
     for book_id in all_book_ids(books_root):
         s = load_state(books_root, book_id)
         status = s.get("status")
-        if status in ADVANCEABLE_STATUSES:
-            ready.append(book_id)
+
+        status_ok = status in ADVANCEABLE_STATUSES
+        if not status_ok:
+            gate = REVIEW_GATED.get(status)
+            status_ok = bool(gate and s.get("review_gates", {}).get(gate))
+        if not status_ok:
             continue
-        gate = REVIEW_GATED.get(status)
-        if gate and s.get("review_gates", {}).get(gate):
+
+        book_dir = books_root / "books" / book_id
+        report = check_book(s, book_dir, scan_outputs=False)
+        if report.gate_passed:
             ready.append(book_id)
+        else:
+            # Persist the hold so the book stops advancing and is visible.
+            enforce_or_hold(books_root, book_id, scan_outputs=False, apply=True, hold=True)
     return ready
 
 

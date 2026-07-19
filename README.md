@@ -76,6 +76,10 @@ ggb-books/                   (companion repo, private)
 
 This pipeline produces content about the Gullah Geechee community — a living people with a preservation mission. Every AI-generated artifact passes through human review by named cultural bearers before publication. See [`docs/cultural-ethics.md`](docs/cultural-ethics.md).
 
+A hard **compliance gate** (ruleset v1.1) enforces brand/ethics rules plus the
+**KDP & Draft2Digital minimum** on every stage — a failing check holds the book
+rather than passing silently. See [`docs/compliance.md`](docs/compliance.md).
+
 ## License
 
 Scripts and workflows: MIT.

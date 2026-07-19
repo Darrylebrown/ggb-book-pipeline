@@ -29,6 +29,13 @@ Following KDP AI-content policy, every book produced by this pipeline includes o
 
 > Portions of this work were produced with generative AI assistance under direct human editorial supervision. All cultural content was reviewed and approved by named community bearers listed in the Acknowledgments. Sacred and restricted material has been excluded from publication.
 
+## Automated compliance gate
+
+These rules are enforced automatically by a hard **compliance gate** before any
+material can advance through the pipeline — including the KDP + Draft2Digital
+minimum required for handoff. A failing check blocks the book (compliance hold)
+rather than passing silently. See [`docs/compliance.md`](compliance.md).
+
 ## Reviewer sign-off
 
 Every book requires signoff on:

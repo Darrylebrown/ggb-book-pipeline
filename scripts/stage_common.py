@@ -24,6 +24,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent))
 from state import load_state, save_state, record_run, mark_error  # noqa: E402
 from llm import call_llm, LLMResult  # noqa: E402
+from compliance import check_text, enforce_or_hold  # noqa: E402
 
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
@@ -112,6 +113,34 @@ def complete_stage(
         )
 
 
+def guard_stage_output(
+    books_root: Path,
+    book_id: str,
+    output_name: str,
+    text: str,
+    stage_name: str,
+) -> None:
+    """Compliance guard for a freshly written stage output.
+
+    Runs a text-level brand/PII scan. On any block, sets a compliance hold
+    (status=Paused, current_stage=compliance_hold) and raises SystemExit so
+    the stage does NOT complete to a ready status with bad content.
+    """
+    blocks = [v for v in check_text(text, path=output_name) if v.severity == "block"]
+    if not blocks:
+        return
+    s = load_state(books_root, book_id)
+    s["status"] = "Paused"
+    s["current_stage"] = "compliance_hold"
+    codes = ", ".join(sorted({v.code for v in blocks}))
+    s["last_error"] = f"Compliance hold in {stage_name} ({output_name}): {codes}"
+    save_state(books_root, book_id, s)
+    # Persist a full report as well (scan existing assets).
+    enforce_or_hold(books_root, book_id, scan_outputs=True, apply=True, hold=True)
+    detail = "; ".join(f"{v.code}: {v.detail}" for v in blocks)
+    raise SystemExit(f"[{stage_name}] compliance hold — {detail}")
+
+
 def run_simple_llm_stage(
     books_root: Path,
     book_id: str,
@@ -158,6 +187,11 @@ def run_simple_llm_stage(
     output_path = ctx.book_dir / output_filename
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(result.text)
+
+    # Hard compliance gate on the freshly written output. If the content
+    # carries brand blocks or PII, place the book on compliance hold and fail
+    # the stage rather than completing it to a ready status.
+    guard_stage_output(books_root, book_id, output_path.name, result.text, stage_name)
 
     complete_stage(
         books_root, book_id,

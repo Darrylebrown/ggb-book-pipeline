@@ -22,6 +22,7 @@ from pathlib import Path
 # Allow running as `python scripts/new_book.py ...` from repo root
 sys.path.insert(0, str(Path(__file__).parent))
 from state import new_state, save_state  # noqa: E402
+from compliance import enforce_or_hold  # noqa: E402
 
 
 def main() -> None:
@@ -71,7 +72,17 @@ def main() -> None:
     state["status"] = "Brief received"
     save_state(books_root, args.book_id, state)
 
+    # Hard compliance gate: only a compliant intake advances. On failure the
+    # book is left on compliance hold (Paused) and we exit non-zero.
+    report = enforce_or_hold(books_root, args.book_id, scan_outputs=False, apply=True, hold=True)
+    if not report.gate_passed:
+        print(f"[new_book] COMPLIANCE HOLD for {args.book_id}: {report.summary()}")
+        for v in report.blocks:
+            print(f"  [block] {v.code} ({v.path}): {v.detail}")
+        sys.exit(1)
+
     print(f"[new_book] Created book folder at {book_dir}")
+    print(f"[new_book] Compliance gate passed (ruleset {report.ruleset_version}).")
     print(f"[new_book] Status set to 'Brief received' — cron will advance on next tick.")
 
 
