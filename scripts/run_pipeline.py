@@ -18,6 +18,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from state import books_ready_to_advance, load_state, mark_error  # noqa: E402
+from compliance import enforce_or_hold  # noqa: E402
+
+
+def _book_has_assets(books_root: Path, book_id: str) -> bool:
+    """True if the book already has generated markdown assets to scan."""
+    book_dir = books_root / "books" / book_id
+    if not book_dir.exists():
+        return False
+    return any(book_dir.rglob("*.md"))
 
 
 # Map "current status" → the stage script to run next.
@@ -102,6 +111,13 @@ def main() -> None:
             print(f"[pipeline] DRY RUN — would run {script_name} for {book_id}")
             continue
 
+        # Pre-stage compliance gate. Scan generated assets if any exist yet.
+        pre_scan = _book_has_assets(books_root, book_id)
+        pre = enforce_or_hold(books_root, book_id, scan_outputs=pre_scan, apply=True, hold=True)
+        if not pre.gate_passed:
+            print(f"[pipeline] {book_id}: COMPLIANCE HOLD before {script_name} — {pre.summary()}")
+            continue
+
         print(f"[pipeline] {book_id}: running {script_name} (status={status!r})")
         try:
             subprocess.run(
@@ -116,6 +132,12 @@ def main() -> None:
                 mark_error(books_root, book_id, f"{script_name} exited with {e.returncode}")
             except Exception as inner:
                 print(f"[pipeline] {book_id}: could not mark error: {inner}")
+            continue
+
+        # Post-stage compliance gate — full scan of the freshly written output.
+        post = enforce_or_hold(books_root, book_id, scan_outputs=True, apply=True, hold=True)
+        if not post.gate_passed:
+            print(f"[pipeline] {book_id}: COMPLIANCE HOLD after {script_name} — {post.summary()}")
 
 
 if __name__ == "__main__":

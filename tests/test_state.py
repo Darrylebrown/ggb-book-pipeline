@@ -45,22 +45,35 @@ def test_save_and_load_roundtrip() -> None:
         assert loaded["working_title"] == "Book A"
 
 
+def _write_brief(root: Path, book_id: str, title: str) -> None:
+    """The compliance gate requires a real brief, so give each book one."""
+    book_dir = root / "books" / book_id
+    book_dir.mkdir(parents=True, exist_ok=True)
+    (book_dir / "brief.md").write_text(
+        f"# {title}\n\nA sufficiently detailed brief about the book's content and scope.\n"
+    )
+
+
 def test_all_book_ids_and_advance() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
+        brief = "A sufficiently detailed one-line brief about the book's content."
         # Book 1: ready (Brief received)
-        s1 = new_state("book-1", "Book 1", "Sub", "vocabulary-reference-v1", "b")
+        s1 = new_state("book-1", "Book 1", "Sub", "vocabulary-reference-v1", brief)
         s1["status"] = "Brief received"
         save_state(root, "book-1", s1)
+        _write_brief(root, "book-1", "Book 1")
         # Book 2: waiting for review, gate not approved
-        s2 = new_state("book-2", "Book 2", "Sub", "vocabulary-reference-v1", "b")
+        s2 = new_state("book-2", "Book 2", "Sub", "vocabulary-reference-v1", brief)
         s2["status"] = "Dossier ready — awaiting review"
         save_state(root, "book-2", s2)
+        _write_brief(root, "book-2", "Book 2")
         # Book 3: waiting for review, gate approved
-        s3 = new_state("book-3", "Book 3", "Sub", "vocabulary-reference-v1", "b")
+        s3 = new_state("book-3", "Book 3", "Sub", "vocabulary-reference-v1", brief)
         s3["status"] = "Structure ready — awaiting review"
         s3["review_gates"]["structure_approved"] = True
         save_state(root, "book-3", s3)
+        _write_brief(root, "book-3", "Book 3")
 
         assert sorted(all_book_ids(root)) == ["book-1", "book-2", "book-3"]
         ready = sorted(books_ready_to_advance(root))
