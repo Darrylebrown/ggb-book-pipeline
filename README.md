@@ -80,6 +80,14 @@ A hard **compliance gate** (ruleset v1.1) enforces brand/ethics rules plus the
 **KDP & Draft2Digital minimum** on every stage — a failing check holds the book
 rather than passing silently. See [`docs/compliance.md`](docs/compliance.md).
 
+## Status dashboard & Free Stack Map
+
+`scripts/build_dashboard.py` generates a GitHub Pages site with two tabs:
+**Book status** (`index.html`) and the **Free Stack Map** (`free-stack.html`) —
+the LOCKED ops standard documenting the zero-fixed-cost stack (free tiers + OSS
+first, revenue pays only on sale). See
+[`docs/compliance.md`](docs/compliance.md#free-stack-map).
+
 ## License
 
 Scripts and workflows: MIT.
